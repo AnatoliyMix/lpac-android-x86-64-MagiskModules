@@ -1,4 +1,4 @@
-name: Build lpac x86_64 MBIM
+name: Build Android Native lpac CLI (x86_64)
 
 on:
   workflow_dispatch:
@@ -7,12 +7,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Official lpac Source
+      - name: Checkout OpenEUICC Source
         uses: actions/checkout@v4
         with:
-          repository: estkme-group/lpac
+          repository: estkme-group/openeuicc
           submodules: recursive
-          path: lpac-src
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -20,53 +19,22 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Bypass All Dependency Checks
+      - name: Configure and Compile lpac CLI
         run: |
-          cd lpac-src
+          # Заходим в папку с нативным кодом lpac для Android
+          cd lpac-jni/jni
           
-          # Отключаем принудительный поиск пакета pcsc в файле конфигурации драйверов
-          if [ -f driver/CMakeLists.txt ]; then
-            sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
-            sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
-            
-            # ВЫРЕЗАЕМ СБОРКУ PCSC-ДРАЙВЕРА: заменяем команду добавления pcsc-библиотеки на комментарий
-            sed -i 's/add_library(driver_apdu_pcsc/# add_library(driver_apdu_pcsc/g' driver/CMakeLists.txt
-            sed -i 's/target_sources(driver_apdu_pcsc/# target_sources(driver_apdu_pcsc/g' driver/CMakeLists.txt
-            sed -i 's/target_link_libraries(driver_apdu_pcsc/# target_link_libraries(driver_apdu_pcsc/g' driver/CMakeLists.txt
-          fi
+          # Настраиваем Application.mk под архитектуру вашего ПК и статическую линковку runtime
+          echo "APP_PLATFORM := android-29" > Application.mk
+          echo "APP_ABI := x86_64" >> Application.mk
+          echo "APP_STL := c++_static" >> Application.mk
           
-          # ОБМАНЫВАЕМ CMAKE (CURL ФЕЙК)
-          mkdir -p cmake
-          cat << 'EOF' > cmake/FindCURL.cmake
-          set(CURL_FOUND TRUE)
-          set(CURL_VERSION "8.0.0")
-          add_library(CURL::libcurl INTERFACE IMPORTED)
-          EOF
-          
-          # Добавляем нашу папку с фейковым CURL в приоритет поиска CMake
-          echo "list(INSERT CMAKE_MODULE_PATH 0 \${CMAKE_CURRENT_SOURCE_DIR}/cmake)" > cmake_tmp.txt
-          cat CMakeLists.txt >> cmake_tmp.txt
-          mv cmake_tmp.txt CMakeLists.txt
+          # Запускаем сборку консольной утилиты напрямую через ndk-build
+          ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C .. APP_BUILD_SCRIPT=jni/Android.mk -j4
 
-      - name: Configure CMake for Android x86_64
-        run: |
-          cd lpac-src
-          mkdir build && cd build
-          
-          # Запускаем конфигурацию
-          cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
-                -DANDROID_ABI=x86_64 \
-                -DANDROID_PLATFORM=android-29 \
-                ..
-
-      - name: Compile lpac
-        run: |
-          cd lpac-src/build
-          make -j4
-
-      - name: Upload Finished Binary
+      - name: Upload Finished CLI Binary
         uses: actions/upload-artifact@v4
         with:
-          name: lpac-android-x86_64-mbim
-          path: lpac-src/build/lpac
+          name: lpac-cli-android-x86_64
+          path: lpac-jni/libs/x86_64/
           

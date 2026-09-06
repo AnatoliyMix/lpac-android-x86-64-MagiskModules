@@ -20,25 +20,37 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Bypass PCSC and CURL Checks
+      - name: Bypass All Dependency Checks
         run: |
           cd lpac-src
           
-          # Полностью отключаем требования к PCSC в файле драйверов
+          # Отключаем десктопный PCSC в файле драйверов
           if [ -f driver/CMakeLists.txt ]; then
             sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
             sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
-            
-            # ВЫРЕЗАЕМ CURL: Заставляем CMake пропустить десктопный поиск библиотеки curl
-            sed -i 's/find_package(CURL REQUIRED)/# find_package(CURL REQUIRED)/g' driver/CMakeLists.txt
           fi
+          
+          # ОБМАНЫВАЕМ CMAKE: Создаем фейковый модуль поиска CURL.
+          # Когда CMake вызовет find_package(CURL), он прочитает этот файл, решит что CURL "найден" 
+          # и не будет запускать встроенный системный скрипт, который падал с ошибкой HTTPS.
+          mkdir -p cmake
+          cat << 'EOF' > cmake/FindCURL.cmake
+          set(CURL_FOUND TRUE)
+          set(CURL_VERSION "8.0.0")
+          add_library(CURL::libcurl INTERFACE IMPORTED)
+          EOF
+          
+          # Добавляем нашу папку с фейковым CURL в приоритет поиска CMake
+          echo "list(INSERT CMAKE_MODULE_PATH 0 \${CMAKE_CURRENT_SOURCE_DIR}/cmake)" > cmake_tmp.txt
+          cat CMakeLists.txt >> cmake_tmp.txt
+          mv cmake_tmp.txt CMakeLists.txt
 
       - name: Configure CMake for Android x86_64
         run: |
           cd lpac-src
           mkdir build && cd build
           
-          # Настраиваем сборку с независимым HTTP-движком wulf и MBIM интерфейсом
+          # Собираем с независимым HTTP-движком wulf и MBIM интерфейсом модема
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \

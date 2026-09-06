@@ -12,6 +12,7 @@ jobs:
         with:
           repository: estkme-group/lpac
           submodules: recursive
+          path: lpac-src
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -19,21 +20,44 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Compile via ndk-build
+      - name: Hard Bypass CURL and PCSC Checks
         run: |
-          # Переходим в готовую Android-папку официального проекта lpac
-          cd android/jni
+          cd lpac-src
           
-          # Настраиваем конфигурацию жестко под архитектуру вашего ПК/планшета
-          echo "APP_PLATFORM := android-29" > Application.mk
-          echo "APP_ABI := x86_64" >> Application.mk
-          echo "APP_STL := c++_static" >> Application.mk
+          # УДАЛЯЕМ ПРОВЕРКУ CURL: принудительно заменяем вызов FindCURL на пустышку,
+          # чтобы обойти ошибку "Required protocol HTTPS is not found"
+          sed -i 's/find_package(CURL REQUIRED)/# find_package(CURL)/g' CMakeLists.txt
           
-          # Запускаем прямую сборку нативного CLI силами NDK
-          ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -j4
+          # Полностью стираем десктопные требования PCSC из драйверов
+          if [ -f driver/CMakeLists.txt ]; then
+            sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
+            sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
+          fi
+
+      - name: Configure CMake for Android x86_64
+        run: |
+          cd lpac-src
+          mkdir build && cd build
+          
+          # Запускаем сборку консольного lpac через CMake под Android x86_64.
+          # Принудительно отключаем десктопные PCSC/AT и переводим сеть на встроенный wulf.
+          cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
+                -DANDROID_ABI=x86_64 \
+                -DANDROID_PLATFORM=android-29 \
+                -DAPP_STL=c++_static \
+                -DLPA_HTTP=wulf \
+                -DLPA_WITH_APDU_MBIM=ON \
+                -DLPA_WITH_APDU_PCSC=OFF \
+                -DLPA_WITH_APDU_AT=OFF \
+                ..
+
+      - name: Compile lpac
+        run: |
+          cd lpac-src/build
+          make -j4
 
       - name: Upload Finished CLI Binary
         uses: actions/upload-artifact@v4
         with:
           name: lpac-cli-android-x86_64
-          path: android/libs/x86_64/
+          path: lpac-src/build/lpac

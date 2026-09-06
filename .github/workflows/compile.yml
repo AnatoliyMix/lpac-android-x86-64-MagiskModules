@@ -1,4 +1,4 @@
-name: Build Android Native lpac CLI (x86_64)
+name: Build Infineon Android LPA APK
 
 on:
   workflow_dispatch:
@@ -7,29 +7,25 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Android-Optimized lpac Fork
+      - name: Checkout Infineon LPA Source
         uses: actions/checkout@v4
         with:
-          repository: we-mobi/lpac
-          submodules: recursive
+          repository: CursedHardware/infineon-lpa-mirror
 
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
-          ndk-version: r25c
+          distribution: 'zulu'
+          java-version: '17'
 
-      - name: Compile Native CLI with ndk-build
-        run: |
-          mkdir -p jni
-          echo "APP_PLATFORM := android-29" > jni/Application.mk
-          echo "APP_ABI := x86_64" >> jni/Application.mk
-          echo "APP_STL := c++_static" >> jni/Application.mk
-          
-          ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C . -j4
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
-      - name: Upload Finished CLI Binary
+      - name: Build with Gradle
+        run: ./gradlew assembleDebug
+
+      - name: Upload Finished APK
         uses: actions/upload-artifact@v4
         with:
-          name: lpac-cli-android-x86_64
-          path: libs/x86_64/lpac
+          name: infineon-lpa-x86_64
+          path: app/build/outputs/apk/debug/app-debug.apk

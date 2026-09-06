@@ -20,18 +20,25 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Disable PCSC Dependency Check
+      - name: Bypass PCSC and CURL Checks
         run: |
           cd lpac-src
+          
+          # Полностью отключаем требования к PCSC в файле драйверов
           if [ -f driver/CMakeLists.txt ]; then
             sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
             sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
+            
+            # ВЫРЕЗАЕМ CURL: Заставляем CMake пропустить десктопный поиск библиотеки curl
+            sed -i 's/find_package(CURL REQUIRED)/# find_package(CURL REQUIRED)/g' driver/CMakeLists.txt
           fi
 
       - name: Configure CMake for Android x86_64
         run: |
           cd lpac-src
           mkdir build && cd build
+          
+          # Настраиваем сборку с независимым HTTP-движком wulf и MBIM интерфейсом
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \

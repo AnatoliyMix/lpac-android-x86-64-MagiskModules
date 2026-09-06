@@ -20,43 +20,24 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Hard-Cuts PCSC and Force MBIM Backend
+      - name: Configure and Compile with CMake
         run: |
           cd lpac-src
+          mkdir build && cd build
           
-          # Полностью переписываем driver/CMakeLists.txt, оставляя ТОЛЬКО MBIM драйвер
-          cat << 'EOF' > driver/CMakeLists.txt
-          set(DRIVER_SOURCES
-              apdu.c
-          )
-          
-          if(LPA_WITH_APDU_MBIM)
-              list(APPEND DRIVER_SOURCES mbim.c)
-              add_compile_definitions(LPA_WITH_APDU_MBIM)
-          endif()
-          
-          add_library(driver STATIC ${DRIVER_SOURCES})
-          EOF
-          
-          # Создаем чистую папку для сборки
-          mkdir build
-
-      - name: Configure CMake for Android x86_64
-        run: |
-          cd lpac-src/build
+          # Запускаем штатную конфигурацию Android NDK x86_64.
+          # Флаг -DINTERFACE_PCSC=OFF принудительно гасит требования к PCSC на уровне CMake.
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \
                 -DAPP_STL=c++_static \
                 -DLPA_HTTP=curl \
-                -DLPA_WITH_APDU_MBIM=ON \
-                -DLPA_WITH_APDU_PCSC=OFF \
-                -DLPA_WITH_APDU_AT=OFF \
+                -DINTERFACE_MBIM=ON \
+                -DINTERFACE_PCSC=OFF \
+                -DINTERFACE_AT=OFF \
                 ..
-
-      - name: Compile lpac
-        run: |
-          cd lpac-src/build
+                
+          # Запускаем сборку проекта
           make -j4
 
       - name: Upload Finished Binary

@@ -24,15 +24,18 @@ jobs:
         run: |
           cd lpac-src
           
-          # Отключаем десктопный PCSC в файле драйверов
+          # Отключаем принудительный поиск пакета pcsc в файле конфигурации драйверов
           if [ -f driver/CMakeLists.txt ]; then
             sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
             sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
+            
+            # ВЫРЕЗАЕМ СБОРКУ PCSC-ДРАЙВЕРА: заменяем команду добавления pcsc-библиотеки на комментарий
+            sed -i 's/add_library(driver_apdu_pcsc/# add_library(driver_apdu_pcsc/g' driver/CMakeLists.txt
+            sed -i 's/target_sources(driver_apdu_pcsc/# target_sources(driver_apdu_pcsc/g' driver/CMakeLists.txt
+            sed -i 's/target_link_libraries(driver_apdu_pcsc/# target_link_libraries(driver_apdu_pcsc/g' driver/CMakeLists.txt
           fi
           
-          # ОБМАНЫВАЕМ CMAKE: Создаем фейковый модуль поиска CURL.
-          # Когда CMake вызовет find_package(CURL), он прочитает этот файл, решит что CURL "найден" 
-          # и не будет запускать встроенный системный скрипт, который падал с ошибкой HTTPS.
+          # ОБМАНЫВАЕМ CMAKE (CURL ФЕЙК)
           mkdir -p cmake
           cat << 'EOF' > cmake/FindCURL.cmake
           set(CURL_FOUND TRUE)
@@ -50,15 +53,10 @@ jobs:
           cd lpac-src
           mkdir build && cd build
           
-          # Собираем с независимым HTTP-движком wulf и MBIM интерфейсом модема
+          # Запускаем конфигурацию
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \
-                -DAPP_STL=c++_static \
-                -DLPA_HTTP=wulf \
-                -DLPA_WITH_APDU_MBIM=ON \
-                -DLPA_WITH_APDU_PCSC=OFF \
-                -DLPA_WITH_APDU_AT=OFF \
                 ..
 
       - name: Compile lpac

@@ -7,10 +7,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
+      - name: Checkout Packaging Source
         uses: actions/checkout@v4
-        with:
-          submodules: recursive # Принудительно качаем подмодули lpac
+
+      - name: Clone Official lpac Source
+        run: |
+          # Скачиваем чистые исходники lpac последней версии
+          git clone --recursive https://github.com lpac-src
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -18,36 +21,29 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Patch for x86_64 & MBIM
+      - name: Configure CMake for Android x86_64 & MBIM
         run: |
-          # Создаем структуру jni, если её нет
-          mkdir -p jni
-          
-          # Генерируем правильный Application.mk под архитектуру вашего ПК
-          echo "APP_PLATFORM := android-29" > jni/Application.mk
-          echo "APP_ABI := x86_64" >> jni/Application.mk
-          echo "APP_STL := c++_static" >> jni/Application.mk
-          
-          # Настраиваем Android.mk под модем Foxconn (Включаем MBIM, выключаем PCSC и AT)
-          if [ -f jni/Android.mk ]; then
-            sed -i 's/LOCAL_CFLAGS += -DLPA_WITH_APDU_PCSC=ON/LOCAL_CFLAGS += -DLPA_WITH_APDU_PCSC=OFF/g' jni/Android.mk
-            sed -i 's/LOCAL_CFLAGS += -DLPA_WITH_APDU_AT=ON/LOCAL_CFLAGS += -DLPA_WITH_APDU_AT=OFF/g' jni/Android.mk
-            echo "LOCAL_CFLAGS += -DLPA_WITH_APDU_MBIM=ON" >> jni/Android.mk
-          fi
+          cd lpac-src
+          mkdir build && cd build
+          # Настраиваем сборку через CMake под Android x86_64 с поддержкой MBIM
+          cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
+                -DANDROID_ABI=x86_64 \
+                -DANDROID_PLATFORM=android-29 \
+                -DAPP_STL=c++_static \
+                -DLPA_HTTP=curl \
+                -DLPA_WITH_APDU_MBIM=ON \
+                -DLPA_WITH_APDU_PCSC=OFF \
+                -DLPA_WITH_APDU_AT=OFF \
+                ..
 
-      - name: Compile with ndk-build
+      - name: Compile lpac
         run: |
-          if [ -f jni/Android.mk ]; then
-            ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C jni/ -j4
-          else
-            echo "Android.mk не найден в jni/. Проверяем текущую структуру папок:"
-            ls -R
-            exit 1
-          fi
+          cd lpac-src/build
+          make -j4
 
       - name: Upload Finished Binary
         uses: actions/upload-artifact@v4
         with:
           name: lpac-android-x86_64-mbim
-          path: libs/x86_64/lpac
+          path: lpac-src/build/lpac
           

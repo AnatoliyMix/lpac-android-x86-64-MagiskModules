@@ -10,7 +10,7 @@ jobs:
       - name: Checkout Android-Optimized lpac Fork
         uses: actions/checkout@v4
         with:
-          repository: e-mobi/lpac
+          repository: euicc/lpac
           submodules: recursive
 
       - name: Setup Android NDK
@@ -21,12 +21,12 @@ jobs:
 
       - name: Configure and Compile with ndk-build
         run: |
-          # Переписываем Application.mk внутри существующей папки jni
+          # Конфигурируем Application.mk строго под архитектуру x86_64 вашего ПК
           echo "APP_PLATFORM := android-29" > jni/Application.mk
           echo "APP_ABI := x86_64" >> jni/Application.mk
           echo "APP_STL := c++_static" >> jni/Application.mk
           
-          # Запускаем прямую сборку нативного CLI силами NDK
+          # Запускаем прямую сборку нативного CLI силами Google NDK
           ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C . -j4
 
       - name: Upload Finished CLI Binary

@@ -1,4 +1,4 @@
-concurrency: name: Build lpac x86_64 MBIM
+name: Build lpac x86_64 MBIM
 
 on:
   workflow_dispatch:
@@ -23,8 +23,6 @@ jobs:
       - name: Disable PCSC Dependency Check
         run: |
           cd lpac-src
-          
-          # Отключаем принудительный поиск пакета pcsc в файле конфигурации драйверов
           if [ -f driver/CMakeLists.txt ]; then
             sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
             sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
@@ -34,13 +32,11 @@ jobs:
         run: |
           cd lpac-src
           mkdir build && cd build
-          
-          # Переключаем LPA_HTTP на автономный бэкенд (wulf или системный), убирая проблемный curl
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \
                 -DAPP_STL=c++_static \
-                -DLPA_HTTP=OFF \
+                -DLPA_HTTP=wulf \
                 -DLPA_WITH_APDU_MBIM=ON \
                 -DLPA_WITH_APDU_PCSC=OFF \
                 -DLPA_WITH_APDU_AT=OFF \

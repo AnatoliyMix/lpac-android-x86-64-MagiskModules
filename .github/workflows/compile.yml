@@ -10,7 +10,7 @@ jobs:
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: recursive # Принудительно качаем подмодули lpac
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -20,23 +20,30 @@ jobs:
 
       - name: Patch for x86_64 & MBIM
         run: |
-          # Применяем оригинальный патч
-          patch -d lpac -p1 < fix.patch
-          cp -f build/version.h lpac/src/
+          # Создаем структуру jni, если её нет
+          mkdir -p jni
           
-          # Настраиваем Application.mk под архитектуру вашего ПК
+          # Генерируем правильный Application.mk под архитектуру вашего ПК
           echo "APP_PLATFORM := android-29" > jni/Application.mk
           echo "APP_ABI := x86_64" >> jni/Application.mk
           echo "APP_STL := c++_static" >> jni/Application.mk
           
-          # Настраиваем Android.mk под модем Foxconn T77W968 (MBIM включен, PCSC выключен)
-          sed -i 's/LOCAL_CFLAGS += -DLPA_WITH_APDU_PCSC=ON/LOCAL_CFLAGS += -DLPA_WITH_APDU_PCSC=OFF/g' jni/Android.mk
-          sed -i 's/LOCAL_CFLAGS += -DLPA_WITH_APDU_AT=ON/LOCAL_CFLAGS += -DLPA_WITH_APDU_AT=OFF/g' jni/Android.mk
-          echo "LOCAL_CFLAGS += -DLPA_WITH_APDU_MBIM=ON" >> jni/Android.mk
+          # Настраиваем Android.mk под модем Foxconn (Включаем MBIM, выключаем PCSC и AT)
+          if [ -f jni/Android.mk ]; then
+            sed -i 's/LOCAL_CFLAGS += -DLPA_WITH_APDU_PCSC=ON/LOCAL_CFLAGS += -DLPA_WITH_APDU_PCSC=OFF/g' jni/Android.mk
+            sed -i 's/LOCAL_CFLAGS += -DLPA_WITH_APDU_AT=ON/LOCAL_CFLAGS += -DLPA_WITH_APDU_AT=OFF/g' jni/Android.mk
+            echo "LOCAL_CFLAGS += -DLPA_WITH_APDU_MBIM=ON" >> jni/Android.mk
+          fi
 
       - name: Compile with ndk-build
         run: |
-          ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C jni/ -j4
+          if [ -f jni/Android.mk ]; then
+            ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C jni/ -j4
+          else
+            echo "Android.mk не найден в jni/. Проверяем текущую структуру папок:"
+            ls -R
+            exit 1
+          fi
 
       - name: Upload Finished Binary
         uses: actions/upload-artifact@v4

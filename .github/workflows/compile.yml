@@ -7,13 +7,12 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Packaging Source
+      - name: Checkout Official lpac Source
         uses: actions/checkout@v4
-
-      - name: Clone Official lpac Source
-        run: |
-          # Скачиваем чистые исходники lpac последней версии
-          git clone --recursive https://github.com lpac-src
+        with:
+          repository: estkme-group/lpac
+          submodules: recursive
+          path: lpac-src
 
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
@@ -25,7 +24,6 @@ jobs:
         run: |
           cd lpac-src
           mkdir build && cd build
-          # Настраиваем сборку через CMake под Android x86_64 с поддержкой MBIM
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \
@@ -46,4 +44,3 @@ jobs:
         with:
           name: lpac-android-x86_64-mbim
           path: lpac-src/build/lpac
-          

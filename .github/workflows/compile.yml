@@ -20,23 +20,22 @@ jobs:
         with:
           ndk-version: r25c
 
-      - name: Kill PCSC Requirements
+      - name: Disable PCSC Dependency Check
         run: |
           cd lpac-src
           
-          # Очищаем CMake-файл драйверов и принудительно заставляем его собирать ТОЛЬКО mbim.c
-          # Это гарантирует, что поиск libpcsclite вообще не будет запущен
-          cat << 'EOF' > driver/CMakeLists.txt
-          project(lpac_driver)
-          add_library(driver STATIC apdu.c mbim.c)
-          target_compile_definitions(driver PUBLIC LPA_WITH_APDU_MBIM)
-          target_include_directories(driver PUBLIC .)
-          EOF
+          # Отключаем принудительный поиск пакета pcsc в файле конфигурации драйверов
+          if [ -f driver/CMakeLists.txt ]; then
+            sed -i 's/pkg_check_modules(PCSCLite REQUIRED libpcsclite)/# pkg_check_modules(PCSCLite libpcsclite)/g' driver/CMakeLists.txt
+            sed -i 's/find_package(PCSCLite REQUIRED)/# find_package(PCSCLite)/g' driver/CMakeLists.txt
+          fi
 
       - name: Configure CMake for Android x86_64
         run: |
           cd lpac-src
           mkdir build && cd build
+          
+          # Запускаем сборку под Android x86_64 с флагами отключения PCSC и включения MBIM
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \

@@ -13,27 +13,34 @@ jobs:
           repository: estkme-group/openeuicc
           submodules: recursive
 
-      - name: Setup Android NDK
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r25c
-
-      - name: Configure and Compile lpac CLI
+      - name: Find and Compile lpac CLI
         run: |
-          # Заходим в папку с нативным кодом lpac для Android
-          cd lpac-jni/jni
+          # Выводим структуру, чтобы понять, где лежат исходники lpac
+          echo "=== Проверяем структуру папок репозитория ==="
+          ls -R | grep -E "lpac|jni|Android.mk" || true
           
-          # Настраиваем Application.mk под архитектуру вашего ПК и статическую линковку runtime
-          echo "APP_PLATFORM := android-29" > Application.mk
-          echo "APP_ABI := x86_64" >> Application.mk
-          echo "APP_STL := c++_static" >> Application.mk
+          # Автоматический поиск папки, где лежит Android.mk для lpac
+          TARGET_DIR=$(find . -type f -name "Android.mk" -not -path "*/build/*" | head -n 1 | xargs dirname)
           
-          # Запускаем сборку консольной утилиты напрямую через ndk-build
-          ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C .. APP_BUILD_SCRIPT=jni/Android.mk -j4
+          if [ -z "$TARGET_DIR" ]; then
+            echo "Ошибка: Файл Android.mk не найден в репозитории!"
+            exit 1
+          fi
+          
+          echo "Найдена папка с исходниками: $TARGET_DIR"
+          cd "$TARGET_DIR"
+          
+          # Если рядом нет jni/, создаем её или генерируем Application.mk прямо тут
+          mkdir -p jni
+          echo "APP_PLATFORM := android-29" > jni/Application.mk
+          echo "APP_ABI := x86_64" >> jni/Application.mk
+          echo "APP_STL := c++_static" >> jni/Application.mk
+          
+          # Запускаем сборку
+          ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=Android.mk -j4 || ndk-build -j4
 
       - name: Upload Finished CLI Binary
         uses: actions/upload-artifact@v4
         with:
           name: lpac-cli-android-x86_64
-          path: lpac-jni/libs/x86_64/
+          path: "**/libs/x86_64/*"

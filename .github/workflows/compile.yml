@@ -1,4 +1,4 @@
-name: Build lpac x86_64 MBIM
+concurrency: name: Build lpac x86_64 MBIM
 
 on:
   workflow_dispatch:
@@ -35,12 +35,12 @@ jobs:
           cd lpac-src
           mkdir build && cd build
           
-          # Запускаем сборку под Android x86_64 с флагами отключения PCSC и включения MBIM
+          # Переключаем LPA_HTTP на автономный бэкенд (wulf или системный), убирая проблемный curl
           cmake -DCMAKE_TOOLCHAIN_FILE=${{ steps.setup-ndk.outputs.ndk-path }}/build/cmake/android.toolchain.cmake \
                 -DANDROID_ABI=x86_64 \
                 -DANDROID_PLATFORM=android-29 \
                 -DAPP_STL=c++_static \
-                -DLPA_HTTP=curl \
+                -DLPA_HTTP=OFF \
                 -DLPA_WITH_APDU_MBIM=ON \
                 -DLPA_WITH_APDU_PCSC=OFF \
                 -DLPA_WITH_APDU_AT=OFF \

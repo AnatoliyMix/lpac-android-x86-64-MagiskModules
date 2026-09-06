@@ -11,7 +11,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: we-mobi/lpac
-          ref: main # или master, если ветка называется так
           submodules: recursive
 
       - name: Setup Android NDK
@@ -22,14 +21,11 @@ jobs:
 
       - name: Compile Native CLI with ndk-build
         run: |
-          # В этом форке папка jni и скрипты ndk-build лежат прямо в корне проекта
-          # Настраиваем конфигурацию под архитектуру x86-64 вашего ПК
           mkdir -p jni
           echo "APP_PLATFORM := android-29" > jni/Application.mk
           echo "APP_ABI := x86_64" >> jni/Application.mk
           echo "APP_STL := c++_static" >> jni/Application.mk
           
-          # Запускаем прямую сборку нативного бинарника без CMake
           ${{ steps.setup-ndk.outputs.ndk-path }}/ndk-build -C . -j4
 
       - name: Upload Finished CLI Binary
@@ -37,4 +33,3 @@ jobs:
         with:
           name: lpac-cli-android-x86_64
           path: libs/x86_64/lpac
-          path: lpac-src/build/lpac
